@@ -16,14 +16,10 @@ func retrieve(fnDB string, initial string, n int) []string {
 	last := initial
 
 	for i := 0; i < n; i++ {
-		rand.Seed(time.Now().UnixNano())
-		// @ TODO implement weighted choice.
-		others, _ := succeedingX(fnDB, last)
+		others, nums := succeedingX(fnDB, last)
 		// # Random choice from others is added to result.
-		length := len(others)
-		if length > 0 {
-			r := rand.Intn(length-0) + 0
-			choice := others[r]
+		choice, ok := weightedChoice(others, nums)
+		if ok {
 			result = append(result, choice)
 			last = choice
 		}
@@ -90,4 +86,31 @@ func readFileContent(name string) string {
 		return ""
 	}
 	return string(content)
+}
+
+func weightedChoice(vals []string, nums []float32) (string, bool) {
+	// @ TODO choice algorithm is not efficient.
+	rand.Seed(time.Now().UnixNano())
+	// Ensure symmetry.
+	if len(vals) == len(nums) {
+
+		// Create a pool of words such that their count
+		// equals the number at the index of nums.
+		pool := make([]string, 0, 20) // 20 is arbitrary.
+		for i, v := range vals {
+			// @ TODO: ATM of implementation, all vals are ints - will be floats.
+			prob := int(nums[i])
+			for j := 0; j < prob; j++ {
+				pool = append(pool, v)
+			}
+		}
+		// Choose.
+		length := len(pool)
+		if length > 0 {
+			r := rand.Intn(length-0) + 0
+			return pool[r], true
+
+		}
+	}
+	return "", false
 }

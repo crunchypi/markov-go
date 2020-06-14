@@ -49,7 +49,6 @@ func CLI() {
 		init, okInit := parseArgs(subSlice, "-init")
 		n, okLen := parseArgs(subSlice, "-len")
 		if okFrom && okInit && okLen {
-			n = "3"
 			nVal, err := strconv.ParseInt(n, 0, 64)
 			if err == nil {
 				fmt.Println(retrieve(from, init, int(nVal)))
