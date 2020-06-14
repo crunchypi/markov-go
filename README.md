@@ -12,7 +12,7 @@ Requirements:
 Usage:
 
 	To create the markov chain DB:
-		<call program> -train -from=<path_to_file.txt> -to=<path_to_file.db -order=<int>>
+		<call program> -train -from=<path_to_file.txt> -to=<path_to_file.db> -order=<int>
 	
 	Note: 	textfile/datasource needs to exist, db file is created if it's missing.
 		'order' is the n-gram order, by convention, at the moment it should be > 2.

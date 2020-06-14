@@ -8,17 +8,6 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-// func TestDB(t *testing.T) {
-
-// 	name := "sqlite.db"
-// 	createDB(name, true)
-// 	createDictionary(name)
-// 	insertNewWord(name, "dank", "bank", 32.0)
-// 	incrementWordPair(name, "dank", "bank")
-// 	fmt.Println(checkWordPair(name, "dak", "bank"))
-
-// }
-
 func createDB(DBName string, overwriteOld bool) bool {
 	// # Remove old DB file.
 	if overwriteOld {
