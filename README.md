@@ -24,4 +24,5 @@ Usage:
 		word as an inspiration. 'len' means how many sequantial words the program should
 		fetch.
 	
- 
+
+DB IO is highly inefficient at the moment, the status of this project is 'prototype'. 
