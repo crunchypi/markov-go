@@ -31,14 +31,18 @@ func CLI() {
 	args := os.Args[1:]
 
 	// # Try training DB.
-	if len(args) == 3 && args[0] == "-train" {
+	if len(args) == 4 && args[0] == "-train" {
 		subSlice := args[1:]
 		from, okFrom := parseArgs(subSlice, "-from")
 		to, okTo := parseArgs(subSlice, "-to")
-		if okFrom && okTo {
-			process(from, to)
-			fmt.Println("\n\nDone.")
-			return
+		order, okOrd := parseArgs(subSlice, "-order")
+		if okFrom && okTo && okOrd {
+			orderVal, err := strconv.ParseInt(order, 0, 64)
+			if err == nil {
+				process(from, to, int(orderVal))
+				fmt.Println("\n\nDone.")
+				return
+			}
 		}
 	}
 
@@ -60,8 +64,8 @@ func CLI() {
 	// # Default help.
 	fmt.Println(
 		"Incorrect arguments. Example:\n",
-		"<call program> -train -from<txtfile> -to=<dbfile> 				  ### Train\n",
-		"<call program> -chat  -from<dbfile> -init=<firstword> -len=<int> ### Generate",
+		"<call program> -train -from=<txtfile> -to=<dbfile> -order=<int>   ### Train\n",
+		"<call program> -chat  -from=<dbfile> -init=<firstword> -len=<int> ### Generate",
 	)
 
 }

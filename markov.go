@@ -27,13 +27,13 @@ func retrieve(fnDB string, initial string, n int) []string {
 	return result
 }
 
-func process(fnText, fnDB string) {
+func process(fnText string, fnDB string, order int) {
 	// # Get long string from file.
 	content := readFileContent(fnText)
 	// # Slice of words.
 	words := strings.Split(content, " ")
 	// # Slice of slices (moving window).
-	windows := ngram(words, 4)
+	windows := ngram(words, order)
 	// # DB created but, does not delete old table if exists.
 	createDictionary(fnDB)
 	// # Counter for printout.
