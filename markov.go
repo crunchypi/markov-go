@@ -13,6 +13,7 @@ import (
 func retrieve(fnDB string, initial string, n int) []string {
 	// # Accumulates relevant words.
 	result := make([]string, 0, n)
+	result = append(result, initial)
 	last := initial
 
 	for i := 0; i < n; i++ {
