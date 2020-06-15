@@ -11,6 +11,16 @@ import (
 
 func main() {
 	CLI()
+	// fn := "db/col.db"
+	// tableCreate(fn, "dank")
+	// res := tableExists(fn, "dank")
+	// fmt.Println(res)
+	// pairInsert(fn, "dank", "bank", 1)
+	// res := pairExists(fn, "dank", "bank", true)
+	// fmt.Println(res)
+	// pairIncrement(fn, "dank", "bank", 1)
+	// n, v := tableDump(fn, "stank")
+	// fmt.Println(n, v)
 }
 
 func parseArgs(args []string, search string) (string, bool) {
