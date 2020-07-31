@@ -142,7 +142,7 @@ func TestGetRelationship(t *testing.T) {
 	m.newNode(nodeB)
 	m.newRelationship(nodeA, nodeB, dst)
 
-	_, res := m.getRelationShip(nodeA, nodeB, dst)
+	res := m.getRelationship(nodeA, nodeB, dst)
 	// t.Log(err, res)
 	if res[0].(string) != nodeA &&
 		res[1].(string) != nodeB &&
@@ -150,4 +150,65 @@ func TestGetRelationship(t *testing.T) {
 		res[3].(int) != 1 {
 		t.Error("didnt get rel:", res)
 	}
+}
+
+func TestRelationshipExists(t *testing.T) {
+	tryCleanup()
+	n, _ := New(uri, usr, pwd, enc)
+	m := n.(*Neo4jManager)
+
+	nodeA, nodeB := "a", "b"
+	dst := 1
+	m.newNode(nodeA)
+	m.newNode(nodeB)
+	m.newRelationship(nodeA, nodeB, dst)
+
+	if !m.relationshipExists(nodeA, nodeB, dst) {
+		t.Error("relship should exist")
+	}
+}
+
+func TestIncrementPair(t *testing.T) {
+	tryCleanup()
+	n, _ := New(uri, usr, pwd, enc)
+	m := n.(*Neo4jManager)
+
+	// # generate data.
+	nodeA, nodeB := "a", "b"
+	dst := 1
+	m.newNode(nodeA)
+	m.newNode(nodeB)
+	m.newRelationship(nodeA, nodeB, dst)
+	m.IncrementPair(nodeA, nodeB, dst)
+
+	// # fetch & check data.
+	res := m.getRelationship(nodeA, nodeB, dst)
+	if res[0].(string) != nodeA &&
+		res[1].(string) != nodeB &&
+		res[2].(int) != dst &&
+		res[3].(int) != 2 {
+		t.Error("failed to fetch:", res)
+	}
+}
+
+func TestSucceedingX(t *testing.T) {
+	tryCleanup()
+	n, _ := New(uri, usr, pwd, enc)
+	m := n.(*Neo4jManager)
+
+	// # generate data.
+	nodeA, nodeB, nodeC := "a", "b", "c"
+	dst := 1
+	m.newNode(nodeA)
+	m.newNode(nodeB)
+	m.newNode(nodeC)
+
+	m.newRelationship(nodeA, nodeB, dst)
+	m.newRelationship(nodeA, nodeC, dst)
+
+	res := m.SucceedingX(nodeA)
+	if len(res) != 2 {
+		t.Error("unexpected res count", res)
+	}
+
 }

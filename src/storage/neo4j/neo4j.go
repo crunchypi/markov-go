@@ -119,16 +119,17 @@ func (n *Neo4jManager) newRelationship(word, other string, dst int) error {
 	})
 }
 
-func (n *Neo4jManager) getRelationShip(word, other string, dst int) (error, []interface{}) {
+func (n *Neo4jManager) getRelationship(word, other string, dst int) []interface{} {
 	res := make([]interface{}, 0, 10) // # 10 is arbitrary
-	err := n.execute(executeParams{
+	n.execute(executeParams{
 		cypher: `
-			 MATCH (x:MChain{word:$word})-[r:conn{dst:1}]->(y:MChain{word:$other})
+			 MATCH (x:MChain{word:$word})-[r:conn{dst:$dst}]->(y:MChain{word:$other})
 			RETURN x.word AS a, y.word AS b, r.dst AS c, r.count AS d
 		`,
 		bindings: map[string]interface{}{
 			"word":  word,
 			"other": other,
+			"dst":   dst,
 		},
 		callbackMode: true,
 		callback: func(r neo4j.Result) {
@@ -142,22 +143,60 @@ func (n *Neo4jManager) getRelationShip(word, other string, dst int) (error, []in
 			// res = append(res, r.Record().Keys())
 		},
 	})
-	return err, res
-}
-
-func (n *Neo4jManager) relationshipExists(word, other string, dst int) bool {
-	res := false
 	return res
 }
 
+func (n *Neo4jManager) relationshipExists(word, other string, dst int) bool {
+	return len(n.getRelationship(word, other, dst)) > 0
+}
+
 func (n *Neo4jManager) IncrementPair(word, other string, dst int) {
-	// Ignore err.
-	var _ = n.execute(executeParams{
-		cypher: ``,
+	if !n.relationshipExists(word, other, dst) {
+		n.newRelationship(word, other, dst)
+		return
+	}
+	n.execute(executeParams{
+		cypher: `
+			MATCH (x:MChain{word:$word})-[r:conn{dst:$dst}]->(y:MChain{word:$other})
+			SET r.count = r.count + 1
+		`,
+		bindings: map[string]interface{}{
+			"word":  word,
+			"other": other,
+			"dst":   dst,
+		},
 	})
 }
 
 func (n *Neo4jManager) SucceedingX(word string) []protocols.WordRelationship {
 
-	return make([]protocols.WordRelationship, 0)
+	res := make([]protocols.WordRelationship, 0, 10) // # 10 is arbitrary
+	n.execute(executeParams{
+		cypher: `
+			 MATCH (x:MChain{word:$word})-[r:conn]->(y)
+			RETURN x.word AS a, y.word AS b, r.dst AS c, r.count AS d 
+		`,
+		bindings: map[string]interface{}{
+			"word": word,
+		},
+		callbackMode: true,
+		callback: func(r neo4j.Result) {
+			a, aok := r.Record().Get("a")
+			b, bok := r.Record().Get("b")
+			c, cok := r.Record().Get("c")
+			d, dok := r.Record().Get("d")
+			// log.Printf("####, %s, %s, %d, %d", a, b, c, d)
+			if aok && bok && cok && dok {
+				newNode := protocols.WordRelationship{
+					Word:     a.(string),
+					Other:    b.(string),
+					Distance: int(c.(int64)),
+					Count:    int(d.(int64)),
+				}
+				res = append(res, newNode)
+
+			}
+		},
+	})
+	return res
 }
