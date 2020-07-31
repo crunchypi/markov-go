@@ -18,6 +18,7 @@ func init() {
 	if usr == "" || pwd == "" {
 		panic("credentials not set")
 	}
+
 }
 
 func tryCleanup() {
@@ -29,7 +30,7 @@ func tryCleanup() {
 		bindings: make(map[string]interface{}, 0),
 	})
 	if err1 != nil || err2 != nil {
-		log.Println("Failed while cleaning up")
+		log.Println("Failed while cleaning up- check credentials.")
 	}
 }
 
@@ -209,6 +210,23 @@ func TestSucceedingX(t *testing.T) {
 	res := m.SucceedingX(nodeA)
 	if len(res) != 2 {
 		t.Error("unexpected res count", res)
+	}
+
+}
+
+func TestFinal(t *testing.T) {
+	tryCleanup()
+	n, err := New(uri, usr, pwd, enc)
+	if err != nil {
+		t.Error("db setup failed. Credentials?")
+	}
+
+	nodeA, nodeB, dst := "a", "b", 1
+	n.IncrementPair(nodeA, nodeB, dst)
+
+	r := n.SucceedingX(nodeA)
+	if r[0].Word != nodeB {
+		t.Error("fetch failed", r)
 	}
 
 }

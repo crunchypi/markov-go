@@ -151,6 +151,12 @@ func (n *Neo4jManager) relationshipExists(word, other string, dst int) bool {
 }
 
 func (n *Neo4jManager) IncrementPair(word, other string, dst int) {
+	for _, v := range []string{word, other} {
+		if !n.nodeExists(v) {
+			n.newNode(v)
+		}
+	}
+
 	if !n.relationshipExists(word, other, dst) {
 		n.newRelationship(word, other, dst)
 		return
@@ -174,7 +180,7 @@ func (n *Neo4jManager) SucceedingX(word string) []protocols.WordRelationship {
 	n.execute(executeParams{
 		cypher: `
 			 MATCH (x:MChain{word:$word})-[r:conn]->(y)
-			RETURN x.word AS a, y.word AS b, r.dst AS c, r.count AS d 
+			RETURN y.word AS a, x.word AS b, r.dst AS c, r.count AS d 
 		`,
 		bindings: map[string]interface{}{
 			"word": word,

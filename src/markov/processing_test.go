@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/crunchypi/markov-go-sql.git/src/protocols"
+	"github.com/crunchypi/markov-go-sql.git/src/storage/neo4j"
 	"github.com/crunchypi/markov-go-sql.git/src/storage/sqlite"
 )
 
@@ -15,12 +17,27 @@ const (
 
 var dataContent = "some random string content\n" // # hast to be the same data in test.txt
 
-var currentTestDB = newDBSQLite
+var currentTestDB = newDBNeo4j
 
-func newDBSQLite() *sqlite.SQLiteManager {
+func newDBSQLite() protocols.DBAbstracter {
 	db, err := sqlite.New(dbpath)
 	if err != nil {
 		panic("db preparation failed")
+	}
+	return db
+}
+
+func newDBNeo4j() protocols.DBAbstracter {
+	const (
+		uri = "bolt://localhost:7687"
+		usr = ""
+		pwd = ""
+		enc = false
+	)
+
+	db, err := neo4j.New(uri, usr, pwd, enc)
+	if err != nil {
+		panic("failed while opening neo4jDB. credentials?")
 	}
 	return db
 }
