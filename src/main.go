@@ -20,7 +20,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	mc, err := markov.New("../data/x.txt", db)
+	mc, err := markov.New("../data/a.txt", db)
 	if err != nil {
 		log.Fatal(err)
 	}
