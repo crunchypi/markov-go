@@ -9,9 +9,11 @@ import (
 )
 
 // # Neo4jManager implements protocols.DBAbstracter
-var _ protocols.DBAbstracter = (*Neo4jManager)(nil)
+var _ protocols.DBAbstracter = (*Manager)(nil)
 
-type Neo4jManager struct {
+// Neo4jManager manages a neo4j connection and holds the set of
+// methods required to implement protocols.DBAbstracter.
+type Manager struct {
 	db neo4j.Driver
 }
 
@@ -22,8 +24,11 @@ type executeParams struct {
 	callback func(neo4j.Result) // Optional
 }
 
+// New attempts to contact a Neo4j DB, given the params. Returns
+// A Neo4jManager type (found in this file), which implements
+// protocols.DBAbstracter.
 func New(uri, user, pwd string, encr bool) (protocols.DBAbstracter, error) {
-	new := Neo4jManager{}
+	new := Manager{}
 
 	driver, err := neo4j.NewDriver(
 		uri,
@@ -38,9 +43,10 @@ func New(uri, user, pwd string, encr bool) (protocols.DBAbstracter, error) {
 	return &new, nil
 }
 
-// modifier is the point of contact of the neo4j db/driver.
-// @ TODO: transactions + batched commands?
-func (n *Neo4jManager) execute(x executeParams) error {
+// execute is the point of contact of the neo4j db/driver.
+// Takes in 'executeParams' struct (found in this file),
+// where 'callback' property (function) is optional.
+func (n *Manager) execute(x executeParams) error {
 	// # Open.
 	session, err := n.db.Session(neo4j.AccessModeWrite)
 	if err != nil {
@@ -63,17 +69,10 @@ func (n *Neo4jManager) execute(x executeParams) error {
 	return nil
 }
 
-// bindings does a common task in this file: converts
-// arguments into a map suitable for the sql pkg
-func (n *Neo4jManager) bindings(word, other string, dst int) map[string]interface{} {
-	return map[string]interface{}{
-		"word":  word,
-		"other": other,
-		"dst":   dst,
-	}
-}
-
-func (n *Neo4jManager) newNodes(words []string) error {
+// newNodes attempts to create a node for each element in 'words'.
+// Done with MERGE instead of CREATE (neo4j syntax) for an
+// all-or-nothing execution.
+func (n *Manager) newNodes(words []string) error {
 	cypher := ``
 	bindings := make(map[string]interface{})
 	for i, v := range words {
@@ -87,14 +86,19 @@ func (n *Neo4jManager) newNodes(words []string) error {
 	})
 }
 
-func (n *Neo4jManager) IncrementPair(word, other string, dst int) {
+// IncrementPair attempts to increment the 'count' property on
+// the relationship between 'word' and 'other' with a certain 'dst'.
+// If this is not possible, a new relationship will be created.
+// Note: 'word' and 'other' do not have to be in the db.
+func (n *Manager) IncrementPair(word, other string, dst int) {
+	// # Add nodes if they do not already exist - makes cypher simpler.
 	n.newNodes([]string{word, other})
 	cypher := `
 		// If relationship exists, increment it
 		OPTIONAL MATCH (a:MChain{word:$word})-[b:conn{dst:$dst}]->(c:MChain{word:$other})
 		SET b.count = b.count + 1
 
-		// Create relship only if nodes exist
+		// Else - create relship only if nodes exist.
 		WITH a AS _
 		MATCH (x:MChain{word:$word}), (y:MChain{word:$other})
 		WHERE NOT (x)-[:conn]->(y)
@@ -111,9 +115,9 @@ func (n *Neo4jManager) IncrementPair(word, other string, dst int) {
 	})
 }
 
-func (n *Neo4jManager) SucceedingX(word string) []protocols.WordRelationship {
+func (n *Manager) SucceedingX(word string) []protocols.WordRelationship {
 
-	res := make([]protocols.WordRelationship, 0, 10) // # 10 is arbitrary
+	res := make([]protocols.WordRelationship, 0, 100) // # 100 is arbitrary
 	n.execute(executeParams{
 		cypher: `
 			 MATCH (x:MChain{word:$word})-[r:conn]->(y)

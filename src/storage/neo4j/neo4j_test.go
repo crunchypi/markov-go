@@ -24,7 +24,7 @@ func init() {
 func tryCleanup() {
 
 	n, err1 := New(uri, usr, pwd, enc)
-	m := n.(*Neo4jManager)
+	m := n.(*Manager)
 	err2 := m.execute(executeParams{
 		cypher:   `MATCH (x) DETACH DELETE x;`,
 		bindings: make(map[string]interface{}, 0),
@@ -34,7 +34,7 @@ func tryCleanup() {
 	}
 }
 
-func (n *Neo4jManager) getRelationship(word, other string, dst int) []interface{} {
+func (n *Manager) getRelationship(word, other string, dst int) []interface{} {
 	res := make([]interface{}, 0, 10) // # 10 is arbitrary
 	n.execute(executeParams{
 		cypher: `
@@ -71,7 +71,7 @@ func TestNew(t *testing.T) {
 func TestModifierNew(t *testing.T) {
 	tryCleanup()
 	n, _ := New(uri, usr, pwd, enc)
-	m := n.(*Neo4jManager)
+	m := n.(*Manager)
 	m.execute(executeParams{
 		cypher:   `CREATE (_:TestNode {t:$val})`,
 		bindings: map[string]interface{}{"val": 99},
@@ -81,7 +81,7 @@ func TestModifierNew(t *testing.T) {
 func TestModifierCallback(t *testing.T) {
 	tryCleanup()
 	n, _ := New(uri, usr, pwd, enc)
-	m := n.(*Neo4jManager)
+	m := n.(*Manager)
 
 	val := 44
 	// # Create data.
@@ -109,7 +109,7 @@ func TestModifierCallback(t *testing.T) {
 func TestNewNodes(t *testing.T) {
 	tryCleanup()
 	n, _ := New(uri, usr, pwd, enc)
-	m := n.(*Neo4jManager)
+	m := n.(*Manager)
 	err := m.newNodes([]string{"testword"})
 	if err != nil {
 		t.Error(err)
@@ -119,7 +119,7 @@ func TestNewNodes(t *testing.T) {
 func TestIncrementPair(t *testing.T) {
 	tryCleanup()
 	n, _ := New(uri, usr, pwd, enc)
-	m := n.(*Neo4jManager)
+	m := n.(*Manager)
 
 	// # generate data.
 	nodeA, nodeB := "a", "b"
@@ -140,7 +140,7 @@ func TestIncrementPair(t *testing.T) {
 func TestSucceedingX(t *testing.T) {
 	tryCleanup()
 	n, _ := New(uri, usr, pwd, enc)
-	m := n.(*Neo4jManager)
+	m := n.(*Manager)
 
 	// # generate data.
 	nodeA, nodeB, nodeC := "a", "b", "c"
