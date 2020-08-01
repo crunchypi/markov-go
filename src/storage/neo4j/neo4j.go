@@ -1,6 +1,9 @@
 package neo4j
 
 import (
+	"fmt"
+	"strconv"
+
 	"github.com/crunchypi/markov-go-sql.git/src/protocols"
 	"github.com/neo4j/neo4j-go-driver/neo4j"
 )
@@ -14,10 +17,9 @@ type Neo4jManager struct {
 
 // Used internal as args in main execution function.
 type executeParams struct {
-	cypher       string
-	bindings     map[string]interface{}
-	callbackMode bool
-	callback     func(neo4j.Result) // Optional
+	cypher   string
+	bindings map[string]interface{}
+	callback func(neo4j.Result) // Optional
 }
 
 func New(uri, user, pwd string, encr bool) (protocols.DBAbstracter, error) {
@@ -53,7 +55,7 @@ func (n *Neo4jManager) execute(x executeParams) error {
 	}
 
 	// # Optional callback.
-	if x.callbackMode {
+	if x.callback != nil {
 		for res.Next() {
 			x.callback(res)
 		}
@@ -71,106 +73,41 @@ func (n *Neo4jManager) bindings(word, other string, dst int) map[string]interfac
 	}
 }
 
-func (n *Neo4jManager) newNode(word string) error {
+func (n *Neo4jManager) newNodes(words []string) error {
+	cypher := ``
+	bindings := make(map[string]interface{})
+	for i, v := range words {
+		cypher += fmt.Sprintf(`MERGE (:MChain{word:$%d})`, i)
+		bindings[strconv.Itoa(i)] = v
+	}
+
 	return n.execute(executeParams{
-		cypher: `CREATE (:MChain {word:$word})`,
-		bindings: map[string]interface{}{
-			"word": word,
-		},
+		cypher:   cypher,
+		bindings: bindings,
 	})
-}
-
-func (n *Neo4jManager) getNode(word string) []interface{} {
-	res := make([]interface{}, 0, 10) // 10 is arbitrary.
-	// res := []string{}
-	n.execute(executeParams{
-		cypher: `MATCH (x) WHERE x.word = $word RETURN x.word AS w`,
-		bindings: map[string]interface{}{
-			"word": word,
-		},
-		callbackMode: true,
-		callback: func(r neo4j.Result) {
-			item, ok := r.Record().Get("w")
-			if ok {
-				res = append(res, item)
-			}
-		},
-	})
-	return res
-}
-
-func (n *Neo4jManager) nodeExists(word string) bool {
-	return len(n.getNode(word)) > 0
-}
-
-func (n *Neo4jManager) newRelationship(word, other string, dst int) error {
-	return n.execute(executeParams{
-		cypher: `
-			MATCH (x), (y)
-			WHERE x.word = $word
-			  AND y.word = $other
-		   CREATE (x)-[:conn{dst:$dst, count:1}]->(y)
-		`,
-		bindings: map[string]interface{}{
-			"word":  word,
-			"other": other,
-			"dst":   dst,
-		},
-	})
-}
-
-func (n *Neo4jManager) getRelationship(word, other string, dst int) []interface{} {
-	res := make([]interface{}, 0, 10) // # 10 is arbitrary
-	n.execute(executeParams{
-		cypher: `
-			 MATCH (x:MChain{word:$word})-[r:conn{dst:$dst}]->(y:MChain{word:$other})
-			RETURN x.word AS a, y.word AS b, r.dst AS c, r.count AS d
-		`,
-		bindings: map[string]interface{}{
-			"word":  word,
-			"other": other,
-			"dst":   dst,
-		},
-		callbackMode: true,
-		callback: func(r neo4j.Result) {
-			a, aok := r.Record().Get("a")
-			b, bok := r.Record().Get("b")
-			c, cok := r.Record().Get("c")
-			d, dok := r.Record().Get("d")
-			if aok && bok && cok && dok {
-				res = append(res, a, b, c, d)
-			}
-			// res = append(res, r.Record().Keys())
-		},
-	})
-	return res
-}
-
-func (n *Neo4jManager) relationshipExists(word, other string, dst int) bool {
-	return len(n.getRelationship(word, other, dst)) > 0
 }
 
 func (n *Neo4jManager) IncrementPair(word, other string, dst int) {
-	for _, v := range []string{word, other} {
-		if !n.nodeExists(v) {
-			n.newNode(v)
-		}
-	}
+	n.newNodes([]string{word, other})
+	cypher := `
+		// If relationship exists, increment it
+		OPTIONAL MATCH (a:MChain{word:$word})-[b:conn{dst:$dst}]->(c:MChain{word:$other})
+		SET b.count = b.count + 1
 
-	if !n.relationshipExists(word, other, dst) {
-		n.newRelationship(word, other, dst)
-		return
+		// Create relship only if nodes exist
+		WITH a AS _
+		MATCH (x:MChain{word:$word}), (y:MChain{word:$other})
+		WHERE NOT (x)-[:conn]->(y)
+		CREATE (x)-[z:conn{dst:$dst, count:1}]->(y)
+	`
+	bindings := map[string]interface{}{
+		"word":  word,
+		"other": other,
+		"dst":   dst,
 	}
 	n.execute(executeParams{
-		cypher: `
-			MATCH (x:MChain{word:$word})-[r:conn{dst:$dst}]->(y:MChain{word:$other})
-			SET r.count = r.count + 1
-		`,
-		bindings: map[string]interface{}{
-			"word":  word,
-			"other": other,
-			"dst":   dst,
-		},
+		cypher:   cypher,
+		bindings: bindings,
 	})
 }
 
@@ -185,7 +122,6 @@ func (n *Neo4jManager) SucceedingX(word string) []protocols.WordRelationship {
 		bindings: map[string]interface{}{
 			"word": word,
 		},
-		callbackMode: true,
 		callback: func(r neo4j.Result) {
 			a, aok := r.Record().Get("a")
 			b, bok := r.Record().Get("b")
@@ -206,3 +142,14 @@ func (n *Neo4jManager) SucceedingX(word string) []protocols.WordRelationship {
 	})
 	return res
 }
+
+// If relationship exists, increment it
+// OPTIONAL MATCH (a:MChain{word:"a"})-[b:conn]->(c:MChain{word:"b"})
+// FOREACH ( _ in CASE WHEN a.word="a" THEN [1] ELSE [0] END |
+//   SET b.dst = b.dst + 1)
+
+// // Create relship only if nodes exist
+// WITH a AS _
+// MATCH (x:MChain{word:"a"}), (y:MChain{word:"b"})
+// WHERE NOT (x)-[:conn]->(y)
+// CREATE (x)-[z:conn{dst:1}]->(y)

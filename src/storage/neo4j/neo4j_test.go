@@ -34,6 +34,32 @@ func tryCleanup() {
 	}
 }
 
+func (n *Neo4jManager) getRelationship(word, other string, dst int) []interface{} {
+	res := make([]interface{}, 0, 10) // # 10 is arbitrary
+	n.execute(executeParams{
+		cypher: `
+			 MATCH (x:MChain{word:$word})-[r:conn{dst:$dst}]->(y:MChain{word:$other})
+			RETURN x.word AS a, y.word AS b, r.dst AS c, r.count AS d
+		`,
+		bindings: map[string]interface{}{
+			"word":  word,
+			"other": other,
+			"dst":   dst,
+		},
+		callback: func(r neo4j.Result) {
+			a, aok := r.Record().Get("a")
+			b, bok := r.Record().Get("b")
+			c, cok := r.Record().Get("c")
+			d, dok := r.Record().Get("d")
+			if aok && bok && cok && dok {
+				res = append(res, a, b, c, d)
+			}
+			// res = append(res, r.Record().Keys())
+		},
+	})
+	return res
+}
+
 func TestNew(t *testing.T) {
 	_, err := New(uri, usr, pwd, enc)
 	if err != nil {
@@ -69,10 +95,9 @@ func TestModifierCallback(t *testing.T) {
 		res = r.Record().Values()
 	}
 	m.execute(executeParams{
-		cypher:       `MATCH (x) WHERE x.t = $val RETURN x.t`,
-		bindings:     map[string]interface{}{"val": val},
-		callbackMode: true,
-		callback:     callback,
+		cypher:   `MATCH (x) WHERE x.t = $val RETURN x.t`,
+		bindings: map[string]interface{}{"val": val},
+		callback: callback,
 	})
 	// # Check (unsafely)
 	if res[0].(int64) != int64(val) {
@@ -81,91 +106,13 @@ func TestModifierCallback(t *testing.T) {
 }
 
 // # created to be checked manually.
-func TestNewNode(t *testing.T) {
+func TestNewNodes(t *testing.T) {
 	tryCleanup()
 	n, _ := New(uri, usr, pwd, enc)
 	m := n.(*Neo4jManager)
-	err := m.newNode("testword")
+	err := m.newNodes([]string{"testword"})
 	if err != nil {
 		t.Error(err)
-	}
-}
-
-// # created to be checked manually.
-func TestNodeExists(t *testing.T) {
-	tryCleanup()
-	n, _ := New(uri, usr, pwd, enc)
-	m := n.(*Neo4jManager)
-
-	word := "test"
-	if m.nodeExists(word) {
-		t.Error("unexpected: node exists")
-	}
-	m.newNode(word)
-	if !m.nodeExists(word) {
-		t.Error("unexpected: node does not exist")
-	}
-}
-
-func TestGetNode(t *testing.T) {
-	tryCleanup()
-	n, _ := New(uri, usr, pwd, enc)
-	m := n.(*Neo4jManager)
-
-	word := "test"
-	m.newNode(word)
-	r := m.getNode(word)
-	if r[0].(string) != word {
-		t.Error("not found")
-	}
-}
-
-// # Written to be tested manually.
-func TestNewRelationship(t *testing.T) {
-	tryCleanup()
-	n, _ := New(uri, usr, pwd, enc)
-	m := n.(*Neo4jManager)
-
-	x, y := "x", "y"
-	m.newNode(x)
-	m.newNode(y)
-	m.newRelationship(x, y, 1)
-}
-
-func TestGetRelationship(t *testing.T) {
-	tryCleanup()
-	n, _ := New(uri, usr, pwd, enc)
-	m := n.(*Neo4jManager)
-
-	nodeA, nodeB := "a", "b"
-	dst := 1
-	m.newNode(nodeA)
-	m.newNode(nodeB)
-	m.newRelationship(nodeA, nodeB, dst)
-
-	res := m.getRelationship(nodeA, nodeB, dst)
-	// t.Log(err, res)
-	if res[0].(string) != nodeA &&
-		res[1].(string) != nodeB &&
-		res[2].(int) != dst &&
-		res[3].(int) != 1 {
-		t.Error("didnt get rel:", res)
-	}
-}
-
-func TestRelationshipExists(t *testing.T) {
-	tryCleanup()
-	n, _ := New(uri, usr, pwd, enc)
-	m := n.(*Neo4jManager)
-
-	nodeA, nodeB := "a", "b"
-	dst := 1
-	m.newNode(nodeA)
-	m.newNode(nodeB)
-	m.newRelationship(nodeA, nodeB, dst)
-
-	if !m.relationshipExists(nodeA, nodeB, dst) {
-		t.Error("relship should exist")
 	}
 }
 
@@ -177,9 +124,7 @@ func TestIncrementPair(t *testing.T) {
 	// # generate data.
 	nodeA, nodeB := "a", "b"
 	dst := 1
-	m.newNode(nodeA)
-	m.newNode(nodeB)
-	m.newRelationship(nodeA, nodeB, dst)
+	// m.newNodes([]string{nodeA, nodeB})
 	m.IncrementPair(nodeA, nodeB, dst)
 
 	// # fetch & check data.
@@ -200,12 +145,10 @@ func TestSucceedingX(t *testing.T) {
 	// # generate data.
 	nodeA, nodeB, nodeC := "a", "b", "c"
 	dst := 1
-	m.newNode(nodeA)
-	m.newNode(nodeB)
-	m.newNode(nodeC)
+	m.newNodes([]string{nodeA, nodeB, nodeC})
 
-	m.newRelationship(nodeA, nodeB, dst)
-	m.newRelationship(nodeA, nodeC, dst)
+	m.IncrementPair(nodeA, nodeB, dst)
+	m.IncrementPair(nodeA, nodeC, dst)
 
 	res := m.SucceedingX(nodeA)
 	if len(res) != 2 {
