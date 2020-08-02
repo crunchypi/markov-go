@@ -4,17 +4,15 @@ import (
 	"io/ioutil"
 	"strings"
 
-	"github.com/crunchypi/markov-go-sql.git/src/protocols"
+	"github.com/crunchypi/markov-go-sql.git/src/storage"
 )
-
-var _ protocols.MarkovAbstracter = (*MarkovChain)(nil)
 
 type MarkovChain struct {
 	corpus []string
-	db     protocols.DBAbstracter
+	db     storage.DBAbstracter
 }
 
-func New(dataPath string, db protocols.DBAbstracter) (*MarkovChain, error) {
+func New(dataPath string, db storage.DBAbstracter) (*MarkovChain, error) {
 	mc := MarkovChain{}
 	mc.db = db
 

@@ -44,7 +44,7 @@ func (m *MarkovChain) ProcessCorpusComplete(verbose bool) {
 	for i := 0; i < size; i++ {
 
 		m.processCorpusInternal(size-i, i, func(j int) {
-			// @ callback not necessary; evaluating direction of changes. 
+			// @ callback not necessary; evaluating direction of changes.
 			if verbose {
 				s := size - i // scans remaining
 				// c := j        //- i    // chunks remaining (in processCorpusInternal).

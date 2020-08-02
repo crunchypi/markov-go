@@ -2,10 +2,9 @@ package markov
 
 import (
 	"os"
-	"strings"
 	"testing"
 
-	"github.com/crunchypi/markov-go-sql.git/src/protocols"
+	"github.com/crunchypi/markov-go-sql.git/src/storage"
 	"github.com/crunchypi/markov-go-sql.git/src/storage/neo4j"
 	"github.com/crunchypi/markov-go-sql.git/src/storage/sqlite"
 )
@@ -15,11 +14,9 @@ const (
 	dbpath   = "testdata/test.sqlite"
 )
 
-var dataContent = "some random string content\n" // # hast to be the same data in test.txt
-
 var currentTestDB = newDBNeo4j
 
-func newDBSQLite() protocols.DBAbstracter {
+func newDBSQLite() storage.DBAbstracter {
 	db, err := sqlite.New(dbpath)
 	if err != nil {
 		panic("db preparation failed")
@@ -27,7 +24,7 @@ func newDBSQLite() protocols.DBAbstracter {
 	return db
 }
 
-func newDBNeo4j() protocols.DBAbstracter {
+func newDBNeo4j() storage.DBAbstracter {
 	const (
 		uri = "bolt://localhost:7687"
 		usr = ""
@@ -54,18 +51,6 @@ func TestNew(t *testing.T) {
 	}
 }
 
-func TestNewData(t *testing.T) {
-	m, _ := New(datapath, currentTestDB())
-	defer cleanup()
-
-	c := strings.Split(dataContent, " ")
-	for i := 0; i < len(c); i++ {
-		if c[i] != m.corpus[i] {
-			t.Error("data inconsistency on iter:", i)
-		}
-	}
-}
-
 func TestProcessCorpusCrashTest(t *testing.T) {
 	m, _ := New(datapath, currentTestDB())
 	defer cleanup()
@@ -79,14 +64,7 @@ func TestProcessCorpusCrashTest(t *testing.T) {
 func TestProcessCorpusByOrder(t *testing.T) {
 	cleanup()
 	m, _ := New(datapath, currentTestDB())
-	m.ProcessCorpusByOrder(2, false)
-}
-
-// Test is verified by checking db
-func TestProcessCorpusComplete(t *testing.T) {
-	cleanup()
-	m, _ := New(datapath, currentTestDB())
-
-	m.ProcessCorpusComplete(true)
+	// m.ProcessCorpusByOrder(-1, false)
+	m.ProcessCorpusComplete(false)
 
 }

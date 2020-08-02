@@ -3,20 +3,23 @@ package markov
 import (
 	"testing"
 
-	"github.com/crunchypi/markov-go-sql.git/src/protocols"
-	"github.com/crunchypi/markov-go-sql.git/src/storage/sqlite"
+	"github.com/crunchypi/markov-go-sql.git/src/storage"
 )
 
 // ----------------------------------------------------------------
-//
+
 // # This test deals with probability - built for manual inspection.
-//
+
 // ----------------------------------------------------------------
 
 const (
 	datapathGen = "testdata/test.txt"
 	dbpathGen   = "testdata/genTest.sqlite"
 )
+
+// # Choices : newDBSQLite, newDBNeo4j. Functions
+// # defined in processing_test.go
+var currentTestDB_ = newDBNeo4j
 
 func TestChoose(t *testing.T) {
 	words := []string{}
@@ -26,9 +29,9 @@ func TestChoose(t *testing.T) {
 		t.Error("test setup issue")
 	}
 
-	relShips := make([]protocols.WordRelationship, 0)
+	relShips := make([]storage.WordRelationship, 0)
 	for i := 0; i < len(words); i++ {
-		relShips = append(relShips, protocols.WordRelationship{
+		relShips = append(relShips, storage.WordRelationship{
 			Other: words[i],
 			Count: scores[i],
 		})
@@ -42,17 +45,14 @@ func TestChoose(t *testing.T) {
 }
 
 func TestGenerateSimple(t *testing.T) {
-	db, err := sqlite.New(dbpathGen)
-	if err != nil {
-		t.Error("failed while creating db object:", err)
-	}
-	m, err := New(datapathGen, db)
+
+	m, err := New(datapathGen, currentTestDB_())
 	if err != nil {
 		t.Error("faild while setting up MChain:", err)
 	}
 
-	m.ProcessCorpusComplete(false)
-	res := m.GenerateSimple("some", 2)
+	m.ProcessCorpusByOrder(-1, true)
+	res := m.GenerateSimple("some", 4)
 	t.Log("#Result:", res)
 
 }
