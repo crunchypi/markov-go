@@ -125,7 +125,10 @@ func TestIncrementPair(t *testing.T) {
 	nodeA, nodeB := "a", "b"
 	dst := 1
 	// m.newNodes([]string{nodeA, nodeB})
-	m.IncrementPair(nodeA, nodeB, dst)
+	err := m.IncrementPair(nodeA, nodeB, dst)
+	if err != nil {
+		t.Error("err incrementing:", err)
+	}
 
 	// # fetch & check data.
 	res := m.getRelationship(nodeA, nodeB, dst)
@@ -150,7 +153,10 @@ func TestSucceedingX(t *testing.T) {
 	m.IncrementPair(nodeA, nodeB, dst)
 	m.IncrementPair(nodeA, nodeC, dst)
 
-	res := m.SucceedingX(nodeA)
+	res, err := m.SucceedingX(nodeA)
+	if err != nil {
+		t.Error("Err while fetching:", err)
+	}
 	if len(res) != 2 {
 		t.Error("unexpected res count", res)
 	}
@@ -167,7 +173,10 @@ func TestFinal(t *testing.T) {
 	nodeA, nodeB, dst := "a", "b", 1
 	n.IncrementPair(nodeA, nodeB, dst)
 
-	r := n.SucceedingX(nodeA)
+	r, err := n.SucceedingX(nodeA)
+	if err != nil {
+		t.Error("Err while fetching:", err)
+	}
 	if r[0].Word != nodeB {
 		t.Error("fetch failed", r)
 	}

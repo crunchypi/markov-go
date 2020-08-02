@@ -4,14 +4,45 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/crunchypi/markov-go-sql.git/src/protocols"
+	"github.com/crunchypi/markov-go-sql.git/src/storage"
 	"github.com/neo4j/neo4j-go-driver/neo4j"
 )
 
-// # Neo4jManager implements protocols.DBAbstracter
-var _ protocols.DBAbstracter = (*Manager)(nil)
+// Manager implements protocols.DBAbstracter
+var _ storage.DBAbstracter = (*Manager)(nil)
 
-// Neo4jManager manages a neo4j connection and holds the set of
+// namings for cypher
+var (
+	nodeLabel  = "MChain"
+	nodeProp   = "word"
+	relLabel   = "conn"
+	relPropDst = "dst"
+	relPropCnt = "count"
+)
+
+// creates a node string with format: (alias:nodeLabel {nodeProp:$bindName}),
+// where nodeLabel and nodeProp are defined in the var block at the top of
+// this file.
+func nodeStr(alias, bindName string) string {
+	return fmt.Sprintf(
+		"(%s:%s {%s:$%s})",
+		alias, nodeLabel,
+		nodeProp, bindName,
+	)
+}
+
+// creates an edge string with format: [alias,relLabel{relPropDst:$bindName}]
+// where relLabel and relPropDst are defined in the var block at the top of
+// this file.
+func edgeStr(alias, bindName string) string {
+	return fmt.Sprintf(
+		"-[%s:%s {%s:$%s}]->",
+		alias, relLabel,
+		relPropDst, bindName,
+	)
+}
+
+// Manager manages a neo4j connection and holds the set of
 // methods required to implement protocols.DBAbstracter.
 type Manager struct {
 	db neo4j.Driver
@@ -27,7 +58,7 @@ type executeParams struct {
 // New attempts to contact a Neo4j DB, given the params. Returns
 // A Neo4jManager type (found in this file), which implements
 // protocols.DBAbstracter.
-func New(uri, user, pwd string, encr bool) (protocols.DBAbstracter, error) {
+func New(uri, user, pwd string, encr bool) (storage.DBAbstracter, error) {
 	new := Manager{}
 
 	driver, err := neo4j.NewDriver(
@@ -76,7 +107,7 @@ func (n *Manager) newNodes(words []string) error {
 	cypher := ``
 	bindings := make(map[string]interface{})
 	for i, v := range words {
-		cypher += fmt.Sprintf(`MERGE (:MChain{word:$%d})`, i)
+		cypher += `MERGE ` + nodeStr("", fmt.Sprintf("%d", i))
 		bindings[strconv.Itoa(i)] = v
 	}
 
@@ -90,70 +121,71 @@ func (n *Manager) newNodes(words []string) error {
 // the relationship between 'word' and 'other' with a certain 'dst'.
 // If this is not possible, a new relationship will be created.
 // Note: 'word' and 'other' do not have to be in the db.
-func (n *Manager) IncrementPair(word, other string, dst int) {
+func (n *Manager) IncrementPair(word, other string, dst int) error {
 	// # Add nodes if they do not already exist - makes cypher simpler.
 	n.newNodes([]string{word, other})
+
 	cypher := `
 		// If relationship exists, increment it
-		OPTIONAL MATCH (a:MChain{word:$word})-[b:conn{dst:$dst}]->(c:MChain{word:$other})
-		SET b.count = b.count + 1
+		OPTIONAL MATCH 
+			` + nodeStr("a", "word") + `
+			` + edgeStr("b", "dst") + `
+			` + nodeStr("c", "other") + ` 
+		SET b.` + relPropCnt + ` = b.` + relPropCnt + ` + 1
 
 		// Else - create relship only if nodes exist.
 		WITH a AS _
-		MATCH (x:MChain{word:$word}), (y:MChain{word:$other})
-		WHERE NOT (x)-[:conn]->(y)
-		CREATE (x)-[z:conn{dst:$dst, count:1}]->(y)
+		MATCH 
+			` + nodeStr("x", "word") + `,
+			` + nodeStr("y", "other") + `
+		WHERE NOT 
+			(x)-[:conn]->(y)
+		CREATE 
+			(x)-[z:conn{dst:$dst, count:1}]->(y)
 	`
 	bindings := map[string]interface{}{
 		"word":  word,
 		"other": other,
 		"dst":   dst,
 	}
-	n.execute(executeParams{
+	return n.execute(executeParams{
 		cypher:   cypher,
 		bindings: bindings,
 	})
 }
 
-func (n *Manager) SucceedingX(word string) []protocols.WordRelationship {
+// SucceedingX retrieves all nodes connected from `word`.
+func (n *Manager) SucceedingX(word string) ([]storage.WordRelationship, error) {
 
-	res := make([]protocols.WordRelationship, 0, 100) // # 100 is arbitrary
-	n.execute(executeParams{
+	res := make([]storage.WordRelationship, 0, 100) // # 100 is arbitrary
+	wrd, othr, dst, cnt := "w", "o", "d", "c"       // # Aliases
+	return res, n.execute(executeParams{
 		cypher: `
-			 MATCH (x:MChain{word:$word})-[r:conn]->(y)
-			RETURN y.word AS a, x.word AS b, r.dst AS c, r.count AS d 
-		`,
-		bindings: map[string]interface{}{
-			"word": word,
-		},
-		callback: func(r neo4j.Result) {
-			a, aok := r.Record().Get("a")
-			b, bok := r.Record().Get("b")
-			c, cok := r.Record().Get("c")
-			d, dok := r.Record().Get("d")
-			// log.Printf("####, %s, %s, %d, %d", a, b, c, d)
-			if aok && bok && cok && dok {
-				newNode := protocols.WordRelationship{
-					Word:     a.(string),
-					Other:    b.(string),
-					Distance: int(c.(int64)),
-					Count:    int(d.(int64)),
-				}
-				res = append(res, newNode)
+			 MATCH  
+			 	  ` + nodeStr("x", "word") + `-[r:conn]->(y)
 
+			RETURN x.word  AS ` + wrd + `, 
+				   y.word  AS ` + othr + `, 
+				   r.dst   AS ` + dst + `, 
+				   r.count AS ` + cnt + `;
+		`,
+		bindings: map[string]interface{}{"word": word},
+		callback: func(r neo4j.Result) {
+			// # Unrap relationship @unsafely
+			newNode := storage.WordRelationship{}
+			if v, ok := r.Record().Get(wrd); ok {
+				newNode.Word = v.(string)
 			}
+			if v, ok := r.Record().Get(othr); ok {
+				newNode.Other = v.(string)
+			}
+			if v, ok := r.Record().Get(dst); ok {
+				newNode.Distance = int(v.(int64))
+			}
+			if v, ok := r.Record().Get(cnt); ok {
+				newNode.Count = int(v.(int64))
+			}
+			res = append(res, newNode)
 		},
 	})
-	return res
 }
-
-// If relationship exists, increment it
-// OPTIONAL MATCH (a:MChain{word:"a"})-[b:conn]->(c:MChain{word:"b"})
-// FOREACH ( _ in CASE WHEN a.word="a" THEN [1] ELSE [0] END |
-//   SET b.dst = b.dst + 1)
-
-// // Create relship only if nodes exist
-// WITH a AS _
-// MATCH (x:MChain{word:"a"}), (y:MChain{word:"b"})
-// WHERE NOT (x)-[:conn]->(y)
-// CREATE (x)-[z:conn{dst:1}]->(y)
