@@ -2,13 +2,12 @@ package sqlite
 
 import (
 	"database/sql"
-	"log"
 
-	"github.com/crunchypi/markov-go-sql.git/src/protocols"
+	"github.com/crunchypi/markov-go-sql.git/src/storage"
 	_ "github.com/mattn/go-sqlite3"
 )
 
-var _ protocols.DBAbstracter = (*SQLiteManager)(nil)
+var _ storage.DBAbstracter = (*SQLiteManager)(nil)
 
 // SQLiteManager manages an sql connection
 type SQLiteManager struct {
@@ -17,7 +16,7 @@ type SQLiteManager struct {
 
 // New creates a new sql connection and a template table
 // (if one does not already exist).
-func New(path string) (protocols.DBAbstracter, error) {
+func New(path string) (storage.DBAbstracter, error) {
 	man := SQLiteManager{}
 	conn, err := sql.Open("sqlite3", path)
 	man.db = conn
@@ -29,14 +28,19 @@ func New(path string) (protocols.DBAbstracter, error) {
 // modifier is a wrapper for all functions which modify the db.
 // argument should be a function which return an sql string and
 // any bindings (as slice of interfaces)
-func (s *SQLiteManager) modifier(query func() (string, []interface{})) {
+func (s *SQLiteManager) modifier(query func() (string, []interface{})) error {
 	sql, bindings := query()
 	statement, err := s.db.Prepare(sql)
 	if err != nil {
-		log.Fatal(err.Error())
+		return err
 	}
-	statement.Exec(bindings...)
-	statement.Close()
+	if _, err := statement.Exec(bindings...); err != nil {
+		return err
+	}
+	if err := statement.Close(); err != nil {
+		return err
+	}
+	return nil
 }
 
 // retriever is a wrapper for all functions which retrieve data
@@ -45,17 +49,18 @@ func (s *SQLiteManager) modifier(query func() (string, []interface{})) {
 // (2) callback: called on each read, must take a ref to sql.Rows.
 //   		   this is used to pull data from each row.
 func (s *SQLiteManager) retriever(query func() (string, []interface{}),
-	callback func(*sql.Rows)) {
+	callback func(*sql.Rows)) error {
 
 	sql, bindings := query()
 	row, err := s.db.Query(sql, bindings...)
 	if err != nil {
-		log.Fatal(err.Error())
+		return err
 	}
 
 	for row.Next() {
 		callback(row)
 	}
+	return nil
 }
 
 // bindings does a common task in this file: converts
@@ -69,8 +74,8 @@ func (s *SQLiteManager) bindings(word, other string, dst int) []interface{} {
 }
 
 // createDictionary creates a new template table (if not exists) in the db.
-func (s *SQLiteManager) createDictionary() {
-	s.modifier(func() (string, []interface{}) {
+func (s *SQLiteManager) createDictionary() error {
+	return s.modifier(func() (string, []interface{}) {
 		sql := `
 			CREATE TABLE IF NOT EXISTS Dictionary (
 				"id" 	  	INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
@@ -86,8 +91,8 @@ func (s *SQLiteManager) createDictionary() {
 
 // ubsertNewPair inserts a new row describing a word relationship
 // in the database. Count attribute is set to 1.
-func (s *SQLiteManager) insertNewPair(word, other string, dst int) {
-	s.modifier(func() (string, []interface{}) {
+func (s *SQLiteManager) insertNewPair(word, other string, dst int) error {
+	return s.modifier(func() (string, []interface{}) {
 		sql := `
 			INSERT INTO Dictionary (word,other,distance,count)
 				 VALUES (?,?,?,1)
@@ -98,7 +103,7 @@ func (s *SQLiteManager) insertNewPair(word, other string, dst int) {
 
 // PairExists checks whether or not a row describing a word
 // relationship exists in the database.
-func (s *SQLiteManager) PairExists(word, other string, dst int) bool {
+func (s *SQLiteManager) PairExists(word, other string, dst int) (bool, error) {
 	f := func() (string, []interface{}) {
 		sql := `
 			SELECT word, other, distance FROM Dictionary
@@ -115,20 +120,24 @@ func (s *SQLiteManager) PairExists(word, other string, dst int) bool {
 		r.Scan(&w, &o, &d)
 		res = w == word && o == other && d == dst
 	}
-	s.retriever(f, callback)
-	return res
+	return res, s.retriever(f, callback)
 }
 
 // IncrementPair updates a row describing a word relationship
 // such that the count is incremented. Automatically creates a new
 // pair with count = 1 if the pair does not already exist.
-func (s *SQLiteManager) IncrementPair(word, other string, dst int) {
-	if !s.PairExists(word, other, dst) {
-		s.insertNewPair(word, other, dst)
-		return
+func (s *SQLiteManager) IncrementPair(word, other string, dst int) error {
+	// Create new pair if a pair does not already exist.
+	exists, err := s.PairExists(word, other, dst)
+	if err != nil {
+		return err
 	}
-
-	s.modifier(func() (string, []interface{}) {
+	if !exists {
+		s.insertNewPair(word, other, dst)
+		return nil
+	}
+	// Increment
+	return s.modifier(func() (string, []interface{}) {
 		sql := `
 			UPDATE Dictionary
 			SET count = count + 1
@@ -143,7 +152,7 @@ func (s *SQLiteManager) IncrementPair(word, other string, dst int) {
 // SucceedingX fetches all counterparts of the parameter such that
 // the other word, distance and count can by anything. Returns
 // a slice of type Record (defined in this file).
-func (s *SQLiteManager) SucceedingX(word string) []protocols.WordRelationship {
+func (s *SQLiteManager) SucceedingX(word string) ([]storage.WordRelationship, error) {
 	f := func() (string, []interface{}) {
 		sql := `
 			SELECT word, other, distance, count FROM Dictionary
@@ -154,13 +163,12 @@ func (s *SQLiteManager) SucceedingX(word string) []protocols.WordRelationship {
 		return sql, bindings
 	}
 
-	records := make([]protocols.WordRelationship, 0, 100) // 100 is arbitrary
+	records := make([]storage.WordRelationship, 0, 100) // 100 is arbitrary
 	callback := func(r *sql.Rows) {
-		rec := protocols.WordRelationship{}
+		rec := storage.WordRelationship{}
 		r.Scan(&rec.Word, &rec.Other, &rec.Distance, &rec.Count)
 		records = append(records, rec)
 	}
 
-	s.retriever(f, callback)
-	return records
+	return records, s.retriever(f, callback)
 }

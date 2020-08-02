@@ -23,26 +23,30 @@ func TestNew(t *testing.T) {
 
 // Have to check manually for this.
 func TestInsertNewPair(t *testing.T) {
-	db, _ := New(path)
+	da, _ := New(path)
+	db := da.(*SQLiteManager)
 	// defer cleanup()
 	db.insertNewPair("one", "two", 3)
 }
 
 func TestPairExists(t *testing.T) {
-	db, _ := New(path)
+	da, _ := New(path)
+	db := da.(*SQLiteManager)
 	defer cleanup()
 
 	word, other, dst := "one", "two", 3
 
 	db.insertNewPair(word, other, dst)
-	if !db.PairExists(word, other, dst) {
+	exists, _ := db.PairExists(word, other, dst)
+	if !exists {
 		t.Error("issue with .PairExists")
 	}
 }
 
 // Have to check manually for this.
 func TestIncrementPair(t *testing.T) {
-	db, _ := New(path)
+	da, _ := New(path)
+	db := da.(*SQLiteManager)
 	// defer cleanup()
 
 	word, other, dst := "one", "two", 3
@@ -52,7 +56,8 @@ func TestIncrementPair(t *testing.T) {
 }
 
 func TestSucceedingX(t *testing.T) {
-	db, _ := New(path)
+	da, _ := New(path)
+	db := da.(*SQLiteManager)
 	defer cleanup()
 
 	wild := "wild"
@@ -64,23 +69,23 @@ func TestSucceedingX(t *testing.T) {
 	db.IncrementPair(word1, wild, dst1)
 	db.IncrementPair(word2, other2, dst2)
 
-	res1 := db.SucceedingX(word1)
-	res2 := db.SucceedingX(word2)
+	res1, _ := db.SucceedingX(word1)
+	res2, _ := db.SucceedingX(word2)
 
 	if len(res1) != 2 || len(res2) != 1 {
 		t.Error("failed to fetch")
 	}
 
-	if res1[0].word != word1 || res1[0].other != other1 ||
-		res1[0].distance != dst1 || res1[0].count != 2 {
+	if res1[0].Word != word1 || res1[0].Other != other1 ||
+		res1[0].Distance != dst1 || res1[0].Count != 2 {
 		t.Error("incorrect result for class 1")
 	}
-	if res1[1].word != word1 || res1[1].other != wild ||
-		res1[1].distance != dst1 || res1[1].count != 1 {
+	if res1[1].Word != word1 || res1[1].Other != wild ||
+		res1[1].Distance != dst1 || res1[1].Count != 1 {
 		t.Error("incorrect result for class 1")
 	}
-	if res2[0].word != word2 || res2[0].other != other2 ||
-		res2[0].distance != dst2 || res2[0].count != 1 {
+	if res2[0].Word != word2 || res2[0].Other != other2 ||
+		res2[0].Distance != dst2 || res2[0].Count != 1 {
 		t.Error("incorrect result for class 2")
 	}
 
