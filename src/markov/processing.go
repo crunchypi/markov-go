@@ -4,6 +4,7 @@ import (
 	"fmt"
 )
 
+// Flexible moving window with callback for printout
 func (m *MarkovChain) processCorpusInternal(
 	order, startOn int, msgCallback func(int)) {
 	// # Moving window.
@@ -21,6 +22,8 @@ func (m *MarkovChain) processCorpusInternal(
 	}
 }
 
+// ProcessCorpusByOrder uses 'order' to generate a markov chain.
+// 'order' is the size of a moving window in this context.
 func (m *MarkovChain) ProcessCorpusByOrder(order int, verbose bool) {
 	size := len(m.corpus)
 	// # Option for max window.
@@ -39,6 +42,8 @@ func (m *MarkovChain) ProcessCorpusByOrder(order int, verbose bool) {
 
 }
 
+// ProcessCorpusComplete avoids 'order' when generating a markov chain.
+// This approach is more comprehensive but naturally requires more time.
 func (m *MarkovChain) ProcessCorpusComplete(verbose bool) {
 	size := len(m.corpus)
 	for i := 0; i < size; i++ {
@@ -47,9 +52,7 @@ func (m *MarkovChain) ProcessCorpusComplete(verbose bool) {
 			// @ callback not necessary; evaluating direction of changes.
 			if verbose {
 				s := size - i // scans remaining
-				// c := j        //- i    // chunks remaining (in processCorpusInternal).
 				fmt.Printf("\r Scans Remaining:%d", s-1)
-				// time.Sleep(time.Second * 3)
 			}
 		})
 
