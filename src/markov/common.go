@@ -12,20 +12,13 @@ type MarkovChain struct {
 	db     storage.DBAbstracter
 }
 
-func New(dataPath string, db storage.DBAbstracter) (*MarkovChain, error) {
+func New(db storage.DBAbstracter) *MarkovChain {
 	mc := MarkovChain{}
 	mc.db = db
-
-	// # Try load corpus.
-	err := mc.readFileContent(dataPath)
-	if err != nil {
-		return &mc, err
-	}
-
-	return &mc, nil
+	return &mc
 }
 
-func (m *MarkovChain) readFileContent(path string) error {
+func (m *MarkovChain) ReadFileContent(path string) error {
 	content, err := ioutil.ReadFile(path)
 	m.corpus = strings.Split(string(content), " ")
 	return err
