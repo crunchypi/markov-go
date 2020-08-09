@@ -98,11 +98,11 @@ func help(msg string) {
 
 		"\nCreate a markov chain with neo4j:",
 		"\n\t-run train -db neo4j -uri bolt://localhost:7687 " +
-			"-usr crunchypi, -pwd morpheus4j -datapath ./x.txt -order 3",
+			"-usr neo4j, -pwd neo4j -datapath ./x.txt -order 3",
 
 		"\nGenerate text with neo4j:",
 		"\n\t-run generate -db neo4j -uri bolt://localhost:7687 " +
-			"-usr crunchypi, -pwd morpheus4j -wordcount 6 -seed me",
+			"-usr neoj4, -pwd neo4j -wordcount 6 -seed me",
 
 		"\n\n\n",
 	}
